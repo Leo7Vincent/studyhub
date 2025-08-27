@@ -1,0 +1,390 @@
+import React, { useState, useEffect } from "react";
+import { Quiz, Progress } from "@/entities/all";
+import { User } from "@/entities/User";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress as ProgressBar } from "@/components/ui/progress";
+import { 
+  Brain, 
+  Clock, 
+  Trophy, 
+  CheckCircle, 
+  XCircle,
+  ArrowRight,
+  RotateCcw
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+export default function QuizPage() {
+  const [quizzes, setQuizzes] = useState([]);
+  const [currentQuiz, setCurrentQuiz] = useState(null);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadQuizzes();
+  }, []);
+
+  useEffect(() => {
+    let timer;
+    if (currentQuiz && timeRemaining > 0 && !showResults) {
+      timer = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            finishQuiz();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [currentQuiz, timeRemaining, showResults]);
+
+  const loadQuizzes = async () => {
+    try {
+      const currentUser = await User.me();
+      setUser(currentUser);
+      
+      const quizData = await Quiz.list('-created_date');
+      setQuizzes(quizData);
+    } catch (error) {
+      console.error('Error loading quizzes:', error);
+    }
+    setIsLoading(false);
+  };
+
+  const startQuiz = (quiz) => {
+    setCurrentQuiz(quiz);
+    setCurrentQuestion(0);
+    setSelectedAnswers(Array(quiz.questions.length).fill(null));
+    setTimeRemaining(quiz.time_limit_minutes * 60);
+    setShowResults(false);
+  };
+
+  const selectAnswer = (answerIndex) => {
+    const newAnswers = [...selectedAnswers];
+    newAnswers[currentQuestion] = answerIndex;
+    setSelectedAnswers(newAnswers);
+  };
+
+  const nextQuestion = () => {
+    if (currentQuestion < currentQuiz.questions.length - 1) {
+      setCurrentQuestion(prev => prev + 1);
+    } else {
+      finishQuiz();
+    }
+  };
+
+  const finishQuiz = async () => {
+    const score = calculateScore();
+    setShowResults(true);
+    
+    // Save quiz result to progress
+    if (user && currentQuiz) {
+      try {
+        const existingProgress = await Progress.filter({
+          user_email: user.email,
+          course_id: currentQuiz.course_id
+        });
+        
+        if (existingProgress.length > 0) {
+          const progress = existingProgress[0];
+          const newQuizScores = [...(progress.quiz_scores || [])];
+          newQuizScores.push({
+            quiz_id: currentQuiz.id,
+            score,
+            completed_at: new Date().toISOString()
+          });
+          
+          await Progress.update(progress.id, {
+            quiz_scores: newQuizScores
+          });
+        }
+      } catch (error) {
+        console.error('Error saving quiz result:', error);
+      }
+    }
+  };
+
+  const calculateScore = () => {
+    let correct = 0;
+    currentQuiz.questions.forEach((question, index) => {
+      if (selectedAnswers[index] === question.correct_answer) {
+        correct++;
+      }
+    });
+    return Math.round((correct / currentQuiz.questions.length) * 100);
+  };
+
+  const resetQuiz = () => {
+    setCurrentQuiz(null);
+    setCurrentQuestion(0);
+    setSelectedAnswers([]);
+    setShowResults(false);
+    setTimeRemaining(null);
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Array(4).fill(0).map((_, i) => (
+              <div key={i} className="h-48 bg-gray-200 rounded-xl"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showResults) {
+    const score = calculateScore();
+    const passed = score >= currentQuiz.passing_score;
+    
+    return (
+      <div className="p-6 md:p-8">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-2xl mx-auto"
+        >
+          <Card className="text-center shadow-xl">
+            <CardHeader className="pb-8">
+              <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6 ${
+                passed ? 'bg-emerald-100' : 'bg-red-100'
+              }`}>
+                {passed ? (
+                  <Trophy className="w-10 h-10 text-emerald-600" />
+                ) : (
+                  <XCircle className="w-10 h-10 text-red-600" />
+                )}
+              </div>
+              <CardTitle className="text-3xl font-bold mb-2">
+                {passed ? 'Congratulations!' : 'Good Effort!'}
+              </CardTitle>
+              <p className="text-gray-600 text-lg">
+                You scored {score}% on "{currentQuiz.title}"
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="text-center">
+                <div className="text-4xl font-bold mb-2 text-gray-900">{score}%</div>
+                <ProgressBar value={score} className="h-4" />
+                <p className="text-sm text-gray-500 mt-2">
+                  {passed ? `Passed! (${currentQuiz.passing_score}% required)` : `${currentQuiz.passing_score}% required to pass`}
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-emerald-600">
+                    {selectedAnswers.filter((answer, i) => answer === currentQuiz.questions[i].correct_answer).length}
+                  </div>
+                  <div className="text-sm text-gray-600">Correct</div>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-red-600">
+                    {selectedAnswers.filter((answer, i) => answer !== currentQuiz.questions[i].correct_answer).length}
+                  </div>
+                  <div className="text-sm text-gray-600">Incorrect</div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 justify-center">
+                <Button onClick={resetQuiz} variant="outline">
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Take Another Quiz
+                </Button>
+                <Button onClick={() => startQuiz(currentQuiz)}>
+                  Try Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (currentQuiz) {
+    const question = currentQuiz.questions[currentQuestion];
+    const progress = ((currentQuestion + 1) / currentQuiz.questions.length) * 100;
+
+    return (
+      <div className="p-6 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Quiz Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-2xl font-bold">{currentQuiz.title}</h1>
+              <div className="flex items-center gap-4">
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+                  timeRemaining < 300 ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                }`}>
+                  <Clock className="w-4 h-4" />
+                  {formatTime(timeRemaining)}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Question {currentQuestion + 1} of {currentQuiz.questions.length}
+                </div>
+              </div>
+            </div>
+            <ProgressBar value={progress} className="h-2" />
+          </motion.div>
+
+          {/* Question */}
+          <motion.div
+            key={currentQuestion}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+          >
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold">
+                  {question.question}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  {question.options.map((option, index) => (
+                    <motion.button
+                      key={index}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => selectAnswer(index)}
+                      className={`w-full p-4 text-left rounded-xl border-2 transition-all ${
+                        selectedAnswers[currentQuestion] === index
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                          selectedAnswers[currentQuestion] === index
+                            ? 'border-blue-500 bg-blue-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedAnswers[currentQuestion] === index && (
+                            <CheckCircle className="w-4 h-4 text-white" />
+                          )}
+                        </div>
+                        <span className="font-medium">{option}</span>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+
+                <div className="flex justify-end pt-6">
+                  <Button
+                    onClick={nextQuestion}
+                    disabled={selectedAnswers[currentQuestion] === null}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  >
+                    {currentQuestion === currentQuiz.questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 md:p-8 space-y-8">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+          Quiz Center
+        </h1>
+        <p className="text-gray-600 text-lg">
+          Test your knowledge and track your progress
+        </p>
+      </motion.div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <AnimatePresence>
+          {quizzes.map((quiz, index) => (
+            <motion.div
+              key={quiz.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -5 }}
+            >
+              <Card className="h-full hover:shadow-xl transition-shadow duration-300">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-xl font-bold mb-2">
+                        {quiz.title}
+                      </CardTitle>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Brain className="w-4 h-4" />
+                          {quiz.questions.length} questions
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {quiz.time_limit_minutes} minutes
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500">Passing Score</div>
+                      <div className="text-lg font-bold text-emerald-600">
+                        {quiz.passing_score}%
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    onClick={() => startQuiz(quiz)}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  >
+                    Start Quiz
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {quizzes.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center py-12"
+        >
+          <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No quizzes available</h3>
+          <p className="text-gray-500">Check back later for new assessments</p>
+        </motion.div>
+      )}
+    </div>
+  );
+}
