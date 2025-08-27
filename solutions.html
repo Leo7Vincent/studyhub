@@ -1,0 +1,176 @@
+import React, { useState, useEffect } from "react";
+import { useLocation, Link, useNavigate } from "react-router-dom";
+import { TextbookSolution } from "@/entities/TextbookSolution";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Search,
+  BookOpen,
+  ChevronsRight
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { createPageUrl } from "@/utils";
+
+const subjects = ["mathematics", "physics", "chemistry", "biology", "engineering", "business", "computer_science"];
+
+export default function SolutionsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [solutions, setSolutions] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const query = params.get('q') || '';
+    const subject = params.get('subject') || 'all';
+    
+    setSearchTerm(query);
+    setSelectedSubject(subject);
+
+    loadSolutions();
+  }, [location.search]);
+
+  const loadSolutions = async () => {
+    setIsLoading(true);
+    try {
+      const data = await TextbookSolution.list('-created_date');
+      setSolutions(data);
+    } catch (error) {
+      console.error('Error loading solutions:', error);
+    }
+    setIsLoading(false);
+  };
+  
+  const handleFilterChange = (type, value) => {
+    const params = new URLSearchParams(location.search);
+    if (type === 'search') params.set('q', value);
+    if (type === 'subject') params.set('subject', value);
+    navigate(`${location.pathname}?${params.toString()}`);
+  }
+
+  const filteredSolutions = solutions.filter(solution => {
+    const normalizedSearch = searchTerm.toLowerCase();
+    const matchesSearch = solution.title.toLowerCase().includes(normalizedSearch) ||
+                         solution.isbn?.toLowerCase().includes(normalizedSearch) ||
+                         solution.authors?.join(' ').toLowerCase().includes(normalizedSearch);
+    const matchesSubject = selectedSubject === "all" || solution.subject.toLowerCase() === selectedSubject.toLowerCase();
+    
+    return matchesSearch && matchesSubject;
+  });
+
+  return (
+    <div className="p-6 md:p-8 space-y-8">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+          Textbook Solutions
+        </h1>
+        <p className="text-gray-600 text-lg">
+          Find expert-verified solutions for your textbooks.
+        </p>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="flex flex-col md:flex-row gap-4"
+      >
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search by ISBN, title, or author..."
+            value={searchTerm}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+            className="pl-10 h-11"
+          />
+        </div>
+        <Select value={selectedSubject} onValueChange={(value) => handleFilterChange('subject', value)}>
+          <SelectTrigger className="w-full md:w-56 h-11">
+            <SelectValue placeholder="All Subjects" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Subjects</SelectItem>
+            {subjects.map(subject => (
+              <SelectItem key={subject} value={subject}>
+                {subject.charAt(0).toUpperCase() + subject.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+      >
+        <AnimatePresence>
+          {filteredSolutions.map((solution, index) => (
+            <motion.div
+              key={solution.id}
+              layout
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+              className="group"
+            >
+              <Link to={createPageUrl(`SolutionDetail?id=${solution.id}`)}>
+                <Card className="h-full overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col">
+                  <div className="relative h-56 bg-gray-100 flex items-center justify-center">
+                    {solution.cover_image ? (
+                      <img 
+                        src={solution.cover_image} 
+                        alt={solution.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <BookOpen className="w-16 h-16 text-gray-400" />
+                    )}
+                  </div>
+                  <CardContent className="p-4 flex-grow flex flex-col justify-between">
+                    <div>
+                      <Badge variant="secondary" className="mb-2 capitalize">{solution.subject}</Badge>
+                      <h3 className="font-bold text-md line-clamp-2 group-hover:text-blue-600 transition-colors">
+                        {solution.title}
+                      </h3>
+                      <p className="text-xs text-gray-500 line-clamp-1">
+                        {solution.authors?.join(', ')}
+                      </p>
+                    </div>
+                    <div className="mt-4">
+                      <Button variant="outline" size="sm" className="w-full group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        View Solutions <ChevronsRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </motion.div>
+
+      {filteredSolutions.length === 0 && !isLoading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center py-12"
+        >
+          <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No solutions found</h3>
+          <p className="text-gray-500">Try adjusting your search criteria or check back later.</p>
+        </motion.div>
+      )}
+    </div>
+  );
+}
