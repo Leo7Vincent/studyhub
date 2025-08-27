@@ -1,0 +1,131 @@
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Search, BookCheck, BrainCircuit, Users } from "lucide-react";
+import { motion } from "framer-motion";
+
+const subjects = [
+  { name: "Mathematics", color: "bg-blue-100 text-blue-800" },
+  { name: "Physics", color: "bg-purple-100 text-purple-800" },
+  { name: "Chemistry", color: "bg-pink-100 text-pink-800" },
+  { name: "Biology", color: "bg-green-100 text-green-800" },
+  { name: "Engineering", color: "bg-orange-100 text-orange-800" },
+  { name: "Business", color: "bg-indigo-100 text-indigo-800" },
+];
+
+export default function HomePage() {
+  const navigate = useNavigate();
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const searchTerm = e.target.elements.search.value;
+    navigate(createPageUrl(`Solutions?q=${encodeURIComponent(searchTerm)}`));
+  };
+
+  return (
+    <div className="w-full">
+      {/* Hero Section */}
+      <motion.section 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="text-center py-20 px-4 bg-white"
+        style={{
+          backgroundImage: 'radial-gradient(circle at top right, rgba(121, 190, 255, 0.2), transparent 40%), radial-gradient(circle at bottom left, rgba(150, 121, 255, 0.2), transparent 40%)'
+        }}
+      >
+        <motion.h1 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          className="text-4xl md:text-6xl font-extrabold text-gray-900"
+        >
+          Homework Done Faster
+        </motion.h1>
+        <motion.p 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+          className="mt-4 max-w-2xl mx-auto text-lg text-gray-600"
+        >
+          Get expert-verified, step-by-step solutions for your textbooks. Understand key concepts and improve your grades.
+        </motion.p>
+        <motion.form 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          onSubmit={handleSearch}
+          className="mt-8 max-w-2xl mx-auto"
+        >
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Input 
+              name="search"
+              placeholder="Search by ISBN, textbook name, or author" 
+              className="w-full h-14 pl-12 pr-32 rounded-full text-lg shadow-lg"
+            />
+            <Button 
+              type="submit" 
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-10 px-6 rounded-full bg-gradient-to-r from-blue-600 to-purple-600"
+            >
+              Find Solutions
+            </Button>
+          </div>
+        </motion.form>
+      </motion.section>
+
+      {/* Features Section */}
+      <section className="py-20 px-4 bg-gray-50">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-8 text-center">
+          <motion.div initial={{y: 20, opacity: 0}} whileInView={{y: 0, opacity: 1}} transition={{delay: 0.1, duration: 0.5}}>
+            <div className="p-6 bg-white rounded-full inline-block shadow-md mb-4">
+              <BookCheck className="w-10 h-10 text-emerald-500" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">Expert Solutions</h3>
+            <p className="mt-2 text-gray-600">Step-by-step explanations written and verified by our subject matter experts.</p>
+          </motion.div>
+          <motion.div initial={{y: 20, opacity: 0}} whileInView={{y: 0, opacity: 1}} transition={{delay: 0.2, duration: 0.5}}>
+            <div className="p-6 bg-white rounded-full inline-block shadow-md mb-4">
+              <BrainCircuit className="w-10 h-10 text-purple-500" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">Practice Problems</h3>
+            <p className="mt-2 text-gray-600">Test your knowledge with quizzes and practice sets for your courses.</p>
+          </motion.div>
+          <motion.div initial={{y: 20, opacity: 0}} whileInView={{y: 0, opacity: 1}} transition={{delay: 0.3, duration: 0.5}}>
+            <div className="p-6 bg-white rounded-full inline-block shadow-md mb-4">
+              <Users className="w-10 h-10 text-blue-500" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">24/7 Homework Help</h3>
+            <p className="mt-2 text-gray-600">Our extensive library is always available, anytime you need it.</p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Browse by Subject Section */}
+      <section className="py-20 px-4 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">Browse by Subject</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {subjects.map((subject, index) => (
+              <motion.div
+                key={subject.name}
+                initial={{scale: 0.9, opacity: 0}}
+                whileInView={{scale: 1, opacity: 1}}
+                transition={{delay: index * 0.05, duration: 0.4}}
+              >
+                <Link to={createPageUrl(`Solutions?subject=${subject.name}`)}>
+                  <div className={`p-6 rounded-xl text-center font-semibold cursor-pointer transition-transform hover:-translate-y-1 ${subject.color}`}>
+                    {subject.name}
+                  </div>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
